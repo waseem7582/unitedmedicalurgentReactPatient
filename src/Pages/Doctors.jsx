@@ -49,14 +49,31 @@ export default function Doctors() {
 
   const [searchTerm, setSearchTerm] = useState("");
 
-  const filteredDoctors = data?.filter(
-    (doctor) =>
-      doctor.f_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      doctor.l_name.toLowerCase().includes(searchTerm.toLowerCase())  ||
-      doctor.specialization.toLowerCase().includes(searchTerm.toLowerCase()) ||   // ✅ NEW: Search in specialization
-      doctor.city.toLowerCase().includes(searchTerm.toLowerCase()) ||            // ✅ NEW: Search by city (was missing before!)
-      `${doctor.f_name} ${doctor.l_name}`.toLowerCase().includes(searchTerm.toLowerCase()) // Search full name (concatenated)
-  );
+  const filteredDoctors = data?.filter((doctor) => {
+  // Safe value extraction with multiple fallbacks
+    const getSafeValue = (value) => {
+      if (value === null || value === undefined) return '';
+      if (typeof value === 'string') return value;
+      if (typeof value === 'number') return value.toString();
+      return '';
+    };
+    const firstName = getSafeValue(doctor.f_name);
+    const lastName = getSafeValue(doctor.l_name);
+    const specialization = getSafeValue(doctor.specialization);
+    const city = getSafeValue(doctor.city);
+    const fullName = `${firstName} ${lastName}`.trim();
+
+    const searchLower = searchTerm.trim().toLowerCase();
+    if (!searchLower) return true;
+
+    return (
+      firstName.toLowerCase().includes(searchLower) ||
+      lastName.toLowerCase().includes(searchLower) ||
+      specialization.toLowerCase().includes(searchLower) ||
+      city.toLowerCase().includes(searchLower) ||
+      fullName.toLowerCase().includes(searchLower)
+    );
+  });
 
   if (isLoading) return <Loading />;
   if (error) return <ErrorPage />;

@@ -43,6 +43,9 @@ const ContactUs = lazy(() => import("../Pages/ContactUs"));
 const ErrorPage = lazy(() => import("../Pages/ErrorPage"));
 const TechnicalError = lazy(() => import("../Pages/TechnicalIssue"));
 
+// IMPORT FOR QR CODE VERIFICATION
+const DoctorVerification = lazy(() => import("../Components/DoctorVerification"));
+
 export default function Main() {
   const location = useLocation();
   const { settingsData, settingsLoading, settingsError } = useSettingsData();
@@ -99,6 +102,9 @@ export default function Main() {
                 <Route path="/home" element={<HomePage />} />
                 <Route path="/doctors" element={<Doctors />} />
                 <Route path="/doctor/:id" element={<Doctor />} />
+                  //ROUTE FOR QR CODE VERIFICATION 
+                <Route path="/verify-doctor/:token" element={<DoctorVerification />} />
+                
                 <Route path="/book-appointment" element={<NewAppointment />} />
                 <Route
                   path="/book-appointment/:doctor/:appoinType"
