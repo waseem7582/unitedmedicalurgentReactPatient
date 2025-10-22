@@ -447,15 +447,18 @@ export default function Doctor() {
                             ) : fee.id == 4 ? (
                               <MdLocalHospital fontSize={28} /> // Add icon for Out Call
                             ) : null}
+                            {/*In Doctor.jsx - Update the display names */}
                             <Text
                               mt={5}
                               fontSize={{ base: "12px", md: "13px" }}
                               fontWeight={500}
                               m={0}
                             >
-                              {fee.id === 2 ? "Video Call" : 
-                               fee.id === 3 ? "Clinic Visit" : 
-                               fee.title
+                              {fee.id === 1 ? "Telehealth" : 
+                                fee.id === 2 ? "Video Call" : 
+                                fee.id === 3 ? "Clinic Visit" :  // This was "OPD" in backend
+                                fee.id === 4 ? "Out Call" :      // This is new
+                                fee.title
                               }
                             </Text>
                             <Text

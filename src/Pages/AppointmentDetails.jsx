@@ -3,7 +3,7 @@ import { IoMdRefresh } from "react-icons/io";
 import { TbBrandZoom } from "react-icons/tb";
 /* eslint-disable react/prop-types */
 import { AiOutlineRight } from "react-icons/ai";
-import { FaDirections, FaFileDownload } from "react-icons/fa";
+import { FaDirections, FaFileDownload, FaExternalLinkAlt } from "react-icons/fa";
 import { AiOutlineDownload } from "react-icons/ai";
 import { FaUserAlt } from "react-icons/fa";
 import {
@@ -34,6 +34,10 @@ import {
   Card,
   CardBody,
   IconButton,
+  Menu,
+  MenuButton,
+  MenuList,
+  MenuItem,
 } from "@chakra-ui/react";
 import moment from "moment";
 import { useNavigate, useParams } from "react-router-dom";
@@ -42,7 +46,7 @@ import Loading from "../Components/Loading";
 import { ADD, GET } from "../Controllers/ApiControllers";
 import imageBaseURL from "../Controllers/image";
 import { CalendarIcon } from "@chakra-ui/icons";
-import { useRef } from "react";
+import { useRef, useState, useEffect } from "react";
 import user from "../Controllers/user";
 import showToast from "../Controllers/ShowToast";
 import api from "../Controllers/api";
@@ -62,10 +66,23 @@ const formatDate = (dateString) => {
     year: date.format("YYYY"),
   };
 };
+
 function openFile(url) {
   const finalURL = `${imageBaseURL}/${url}`;
   window.open(finalURL, "_blank");
 }
+
+// ADD THIS FUNCTION - Decodes Unicode addresses
+const decodeUnicodeAddress = (address) => {
+  if (!address) return '';
+  
+  return address
+    .replace(/\\ud83d\\udccd/g, '📍')  // Location pin emoji
+    .replace(/\\ud83d\\uddfa\\ufe0f/g, '🗺️')  // World map emoji  
+    .replace(/\\ud83d\\ude97/g, '🚗')  // Car emoji
+    .replace(/\\r\\n/g, '\n')  // Fix line breaks
+    .replace(/\\\//g, '/');  // Fix escaped slashes
+};
 
 const AppointmentDetails = () => {
   const navigate = useNavigate();
@@ -85,10 +102,81 @@ const AppointmentDetails = () => {
     onClose: ratingOnClose,
   } = useDisclosure();
   const cancelRef = useRef();
+  
+  // State for location data
+  const [locationData, setLocationData] = useState(null);
+
+  // UPDATED: Function to extract coordinates from out_call_address
+  const extractLocationData = (outCallAddress) => {
+    if (!outCallAddress) {
+      console.log("No out_call_address provided");
+      return null;
+    }
+    
+    console.log("Raw Out Call Address:", outCallAddress);
+    
+    // Method 1: Extract from Google Maps URL (most reliable)
+    const urlMatch = outCallAddress.match(/https:\/\/www\.google\.com\/maps\?q=([-\d.]+),([-\d.]+)/);
+    if (urlMatch) {
+      console.log("✅ Found coordinates in Google Maps URL");
+      const lat = urlMatch[1];
+      const lng = urlMatch[2];
+      return {
+        latitude: lat,
+        longitude: lng,
+        mapsUrl: urlMatch[0],
+        directionsUrl: `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`
+      };
+    }
+    
+    // Method 2: Extract coordinates directly using more flexible patterns
+    const latMatch = outCallAddress.match(/Latitude:\s*([-\d.]+)/);
+    const lngMatch = outCallAddress.match(/Longitude:\s*([-\d.]+)/);
+    
+    if (latMatch && lngMatch) {
+      console.log("✅ Found coordinates in text format");
+      const lat = latMatch[1];
+      const lng = lngMatch[1];
+      return {
+        latitude: lat,
+        longitude: lng,
+        mapsUrl: `https://www.google.com/maps?q=${lat},${lng}`,
+        directionsUrl: `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`
+      };
+    }
+    
+    console.log("❌ No coordinates found");
+    return null;
+  };
+
   const getData = async () => {
     const res = await GET(`get_appointment/${id}`);
     return res.data;
   };
+  
+  // UPDATED: onSuccess callback with better logging
+  const { isLoading, data: appointmentData } = useQuery({
+    queryKey: ["appointment", id],
+    queryFn: getData,
+    onSuccess: (data) => {
+      console.log("📱 Appointment data loaded:", data);
+      
+      // Extract location data when appointment type is Out Call
+      if (data?.type === "Out Call") {
+        console.log("🏠 Out Call appointment detected");
+        
+        // Decode the address first to see what we're working with
+        const decodedAddress = decodeUnicodeAddress(data.out_call_address);
+        console.log("🔍 Decoded address:", decodedAddress);
+        
+        const extractedLocationData = extractLocationData(data.out_call_address);
+        console.log("🎯 Extracted location data:", extractedLocationData);
+        
+        setLocationData(extractedLocationData);
+      }
+    }
+  });
+
   // req history
   const getReqData = async () => {
     const res = await GET(`get_appointment_cancel_req/appointment/${id}`);
@@ -115,10 +203,6 @@ const AppointmentDetails = () => {
     return res.data;
   };
 
-  const { isLoading, data: appointmentData } = useQuery({
-    queryKey: ["appointment", id],
-    queryFn: getData,
-  });
   const { isLoading: reqHistoryLoading, data: reqHistoryData } = useQuery({
     queryKey: ["appointment-req-history", id],
     queryFn: getReqData,
@@ -132,7 +216,7 @@ const AppointmentDetails = () => {
     queryFn: getPrescription,
   });
   const {
-    isFetching: queueIsFetching, // This is true even during refetching
+    isFetching: queueIsFetching,
     data: queueData,
     refetch,
   } = useQuery({
@@ -146,8 +230,6 @@ const AppointmentDetails = () => {
     queryFn: getPatientFiles,
     enabled: !!appointmentData,
   });
-
-  // get request history
 
   const { month, date, year } = formatDate(appointmentData?.date);
   const queueNumb = queueData?.findIndex((queue) => {
@@ -163,9 +245,9 @@ const AppointmentDetails = () => {
     patientFilesLoading
   )
     return <Loading />;
+    
   return (
     <Box>
-      {" "}
       <Box bg={"primary.main"} p={4} py={{ base: "4", md: "10" }}>
         <Box className="container">
           <Text
@@ -179,10 +261,9 @@ const AppointmentDetails = () => {
             Appointment #{id}
           </Text>
         </Box>
-      </Box>{" "}
+      </Box>
       <Box className="container" minH={"80vh"}>
         <Flex justify={"center"}>
-          {" "}
           <Box
             p={[2, 4, 5]}
             shadow="lg"
@@ -272,7 +353,6 @@ const AppointmentDetails = () => {
                   size={"sm"}
                   rightIcon={<IoMdRefresh fontSize={18} />}
                   onClick={() => {
-                    // @ts-ignore
                     queryClient.invalidateQueries([
                       "queue",
                       appointmentData?.doct_id,
@@ -304,14 +384,12 @@ const AppointmentDetails = () => {
             ) : null}
 
             <Flex align={"center"} justify={"space-between"} mt={5}>
-              {" "}
               <Text fontWeight="bold" color={"gray.600"}>
                 Appointment #{appointmentData.id}
               </Text>
               {getStatusBadge(appointmentData?.status)}
             </Flex>
             <Box>
-              {" "}
               <Text fontWeight={600} color={"gray.600"} fontSize={"sm"}>
                 Patient : {appointmentData.patient_f_name}{" "}
                 {appointmentData.patient_l_name}
@@ -327,10 +405,90 @@ const AppointmentDetails = () => {
               </Badge>
             </Box>
             <Divider my={2} />
+            
+            {/* UPDATED: Out Call Location Information */}
+            {appointmentData?.type === "Out Call" && (
+              <Box mt={3} p={3} bg="blue.50" borderRadius="md">
+                <Text fontWeight="bold" mb={2}>📍 Patient Location Details</Text>
+                
+                {/* Decoded Address Display */}
+                {/* {appointmentData.out_call_address && (
+                  <Box mb={3} p={2} bg="white" borderRadius="md">
+                    <Text fontSize="sm" fontWeight={600} mb={1}>Shared Location:</Text>
+                    <Text fontSize="xs" color="gray.700" whiteSpace="pre-wrap" fontFamily="monospace">
+                      {decodeUnicodeAddress(appointmentData.out_call_address)}
+                    </Text>
+                  </Box>
+                )} */}
+                
+                <Text fontSize="sm" mb={1}>
+                  <strong>City:</strong> {appointmentData.out_call_city}
+                </Text>
+                
+                {appointmentData.out_call_landmark && (
+                  <Text fontSize="sm" mb={1}>
+                    <strong>Landmark:</strong> {appointmentData.out_call_landmark}
+                  </Text>
+                )}
+                
+                {appointmentData.out_call_instructions && (
+                  <Text fontSize="sm" mb={2}>
+                    <strong>Instructions:</strong> {appointmentData.out_call_instructions}
+                  </Text>
+                )}
+                
+                {/* ALWAYS SHOW BUTTONS - They will work! */}
+                <Flex gap={3} mt={3}>
+                  <Button
+                    leftIcon={<FaExternalLinkAlt />}
+                    colorScheme="blue"
+                    size="sm"
+                    onClick={() => {
+                      // Extract coordinates on click to ensure fresh data
+                      const coords = extractLocationData(appointmentData.out_call_address);
+                      if (coords) {
+                        window.open(coords.mapsUrl, "_blank");
+                      } else {
+                        alert("Could not extract location coordinates from address.");
+                      }
+                    }}
+                    flex="1"
+                  >
+                    View in Maps
+                  </Button>
+                  
+                  <Button
+                    leftIcon={<FaDirections />}
+                    colorScheme="green"
+                    variant="solid"
+                    size="sm"
+                    onClick={() => {
+                      // Extract coordinates on click to ensure fresh data
+                      const coords = extractLocationData(appointmentData.out_call_address);
+                      if (coords) {
+                        window.open(coords.directionsUrl, "_blank");
+                      } else {
+                        alert("Could not extract location coordinates from address.");
+                      }
+                    }}
+                    flex="1"
+                  >
+                    Get Directions
+                  </Button>
+                </Flex>
+                
+                {/* Debug info - shows what we found */}
+                {/* {locationData && (
+                  <Text fontSize="xs" color="green.600" mt={2}>
+                    <strong>✅ Coordinates found:</strong> {locationData.latitude}, {locationData.longitude}
+                  </Text>
+                )} */}
+              </Box>
+            )}
+            
             <Box overflow="hidden" p={5}>
               <Flex align={"center"} justify={"space-between"} gap={5}>
                 <Box flex={1}>
-                  {" "}
                   <Text>Date</Text>
                   <InputGroup w={"100%"}>
                     <InputLeftElement pointerEvents="none">
@@ -364,7 +522,6 @@ const AppointmentDetails = () => {
             </Box>
             {appointmentData?.type === "Video Consultant" && (
               <Flex gap={4}>
-                {" "}
                 <Button
                   isDisabled={
                     appointmentData?.status === "Cancelled" ||
@@ -386,7 +543,6 @@ const AppointmentDetails = () => {
             <Divider my={2} mt={5} />
             <Box mt={5}>
               <Flex align={"center"} justify={"space-between"}>
-                {" "}
                 <Text fontWeight="bold">Prescriptions - </Text>
               </Flex>
               {prescriptionData.length ? (
@@ -426,7 +582,6 @@ const AppointmentDetails = () => {
             <Divider my={2} mt={5} />
             <Box mt={5}>
               <Flex align={"center"} justify={"space-between"} mb={3}>
-                {" "}
                 <Text fontWeight="bold">Patient Files - </Text>
               </Flex>
 
@@ -443,7 +598,6 @@ const AppointmentDetails = () => {
                         <CardBody p={4}>
                           <Flex align={"center"} justify={"space-between"}>
                             <Flex align={"center"} gap={4}>
-                              {" "}
                               <GoFileSubmodule fontSize={24} color="#2D3748" />
                               <Box>
                                 <Text fontSize={14} fontWeight={600} mb={0}>
@@ -489,7 +643,6 @@ const AppointmentDetails = () => {
             <Divider my={2} mt={5} />
             <Box mt={5}>
               <Flex align={"center"} justify={"space-between"}>
-                {" "}
                 <Text fontWeight="bold">Payment Status</Text>
                 <Badge colorScheme="green" fontWeight="bold" variant="solid">
                   {appointmentData?.payment_status || "Not Paid"}
@@ -512,21 +665,42 @@ const AppointmentDetails = () => {
                 </Button>
               ) : null}
             </Box>
-            <Contact doctID={appointmentData?.doct_id} />
+            
+            <Contact 
+              doctID={appointmentData?.doct_id} 
+              locationData={locationData}
+              appointmentType={appointmentData?.type}
+            />
+            
+            {/* Smart Directions Button */}
             <Box mt={5}>
-              <Button
-                leftIcon={<FaDirections />}
-                colorScheme="gray"
-                variant="solid"
-                width="100%"
-                size={"sm"}
-                as={Link}
-                href={`https://www.google.com/maps?q=${latitude.value},${longitude.value}`}
-                isExternal
-              >
-                Make direction to clinic location
-              </Button>
+              {appointmentData?.type === "Out Call" && locationData ? (
+                <Button
+                  leftIcon={<FaDirections />}
+                  colorScheme="blue"
+                  variant="solid"
+                  width="100%"
+                  size={"sm"}
+                  onClick={() => window.open(locationData.directionsUrl, "_blank")}
+                >
+                  Get Directions to Patient Location
+                </Button>
+              ) : (
+                <Button
+                  leftIcon={<FaDirections />}
+                  colorScheme="gray"
+                  variant="solid"
+                  width="100%"
+                  size={"sm"}
+                  as={Link}
+                  href={`https://www.google.com/maps?q=${latitude.value},${longitude.value}`}
+                  isExternal
+                >
+                  Make direction to clinic location
+                </Button>
+              )}
             </Box>
+            
             <Divider my={2} />
 
             {["Pending", "Confirmed", "Rescheduled", "Cancelled"].includes(
@@ -622,154 +796,8 @@ const AppointmentDetails = () => {
 
 export default AppointmentDetails;
 
-const DailogModal = ({
-  cancelRef,
-  isOpen,
-  onClose,
-  currentStatus,
-  appointID,
-}) => {
-  const queryClient = useQueryClient();
-  const toast = useToast();
-
-  // initate cancel
-  const handleCancellation = async (data) => {
-    let formData = {
-      appointment_id: data.id,
-      status: data.status,
-    };
-    try {
-      const res = await ADD(user.token, data.url, formData);
-      if (res.response === 200) {
-        showToast(toast, "success", "Success!");
-        // @ts-ignore
-        queryClient.invalidateQueries("cartdata");
-        return res;
-      } else {
-        showToast(toast, "error", res.message);
-        return res;
-      }
-    } catch (error) {
-      return error;
-    }
-  };
-
-  const mutation = useMutation({
-    mutationFn: async (data) => {
-      await handleCancellation(data);
-    },
-    onSuccess: () => {
-      // @ts-ignore
-      queryClient.invalidateQueries(["appointment-req-history", appointID]);
-      // @ts-ignore
-      queryClient.invalidateQueries(["appointment", appointID]);
-      onClose();
-    },
-    onError: (error) => {
-      showToast(toast, "error", JSON.stringify(error));
-    },
-  });
-
-  if (mutation.isPending) return <Loading />;
-
-  return (
-    <AlertDialog
-      motionPreset="slideInBottom"
-      leastDestructiveRef={cancelRef}
-      onClose={onClose}
-      isOpen={isOpen}
-      isCentered
-    >
-      <AlertDialogOverlay />
-
-      <AlertDialogContent m={{ base: 2, md: 0 }}>
-        <AlertDialogHeader fontSize={"md"}>
-          {currentStatus === null
-            ? "Cancel Appointment"
-            : "Delete Cancellation Request"}{" "}
-          ?
-        </AlertDialogHeader>
-        <AlertDialogCloseButton />
-        <AlertDialogBody>
-          {currentStatus === null
-            ? "Are you sure , you want to cancel this appointment"
-            : "Are you sure , you want to delete cancellation request"}{" "}
-          ?
-        </AlertDialogBody>
-        <AlertDialogFooter>
-          <Button ref={cancelRef} onClick={onClose} size={"sm"} minW={20}>
-            No
-          </Button>
-          <Button
-            colorScheme="red"
-            ml={3}
-            size={"sm"}
-            minW={20}
-            onClick={() => {
-              currentStatus === null
-                ? mutation.mutate({
-                    id: appointID,
-                    status: "Initiated",
-                    url: "appointment_cancellation",
-                  })
-                : currentStatus === "Initiated"
-                ? mutation.mutate({
-                    id: appointID,
-                    status: "Initiated",
-                    url: "delete_appointment_cancellation",
-                  })
-                : null;
-            }}
-          >
-            Yes
-          </Button>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
-  );
-};
-
-const ReqHistory = ({ item }) => {
-  const getStatusColor = (status) => {
-    switch (status) {
-      case "Initiated":
-        return "yellow.400"; // Replace with desired Chakra color
-      case "Rejected":
-        return "red.500"; // Replace with desired Chakra color
-      case "Approved":
-        return "green.500"; // Replace with desired Chakra color
-      case "Processing":
-        return "orange.400"; // Replace with desired Chakra color
-      default:
-        return "gray.500"; // Default color
-    }
-  };
-  return (
-    <Box>
-      {" "}
-      <Flex gap={5} align={"center"}>
-        <Box
-          bg={getStatusColor(item.status)}
-          width="8px"
-          height="8px"
-          borderRadius="50%"
-        />
-        <Box>
-          {" "}
-          <Text fontSize={"sm"} fontWeight={600}>
-            {item.status}
-          </Text>
-          <Text fontSize={"xs"} fontWeight={500} color={"gray.600"}>
-            {moment(item.created_at).format("DD-MM-YYYY hh:mm A")}
-          </Text>
-        </Box>
-      </Flex>
-      <Divider borderColor={"#fff"} my={2} borderWidth={1} />
-    </Box>
-  );
-};
-
-const Contact = ({ doctID }) => {
+// Contact component with enhanced location menu
+const Contact = ({ doctID, locationData, appointmentType }) => {
   const getData = async () => {
     const res = await GET(`get_doctor/${doctID}`);
     return res.data;
@@ -842,21 +870,56 @@ const Contact = ({ doctID }) => {
                 Gmail
               </Text>
             </Button>
-            <Button
-              variant="link"
-              colorScheme="gray"
-              color={"gray.600"}
-              display={"flex"}
-              flexDir={"column"}
-              as={Link}
-              isExternal
-              href={`https://www.google.com/maps?q=${latitude.value},${longitude.value}`}
-            >
-              <Image src="/google-maps.png" w={9} />
-              <Text mt={2} fontSize={"sm"}>
-                Location
-              </Text>
-            </Button>
+
+            {/* Enhanced Location button for Out Call appointments */}
+            {appointmentType === "Out Call" && locationData ? (
+              <Menu>
+                <MenuButton
+                  as={Button}
+                  variant="link"
+                  colorScheme="gray"
+                  color={"gray.600"}
+                  display={"flex"}
+                  flexDir={"column"}
+                >
+                  <Image src="/google-maps.png" w={9} />
+                  <Text mt={2} fontSize={"sm"}>
+                    Location
+                  </Text>
+                </MenuButton>
+                <MenuList>
+                  <MenuItem 
+                    icon={<Image src="/google-maps.png" w={5} />}
+                    onClick={() => window.open(locationData.mapsUrl, "_blank")}
+                  >
+                    View in Maps
+                  </MenuItem>
+                  <MenuItem 
+                    icon={<FaDirections />}
+                    onClick={() => window.open(locationData.directionsUrl, "_blank")}
+                  >
+                    Get Directions
+                  </MenuItem>
+                </MenuList>
+              </Menu>
+            ) : (
+              <Button
+                variant="link"
+                colorScheme="gray"
+                color={"gray.600"}
+                display={"flex"}
+                flexDir={"column"}
+                as={Link}
+                isExternal
+                href={`https://www.google.com/maps?q=${latitude.value},${longitude.value}`}
+              >
+                <Image src="/google-maps.png" w={9} />
+                <Text mt={2} fontSize={"sm"}>
+                  Location
+                </Text>
+              </Button>
+            )}
+
             <Button
               variant="link"
               colorScheme="gray"
@@ -876,5 +939,148 @@ const Contact = ({ doctID }) => {
         </Box>
       )}
     </>
+  );
+};
+
+// DailogModal Component
+const DailogModal = ({
+  cancelRef,
+  isOpen,
+  onClose,
+  currentStatus,
+  appointID,
+}) => {
+  const queryClient = useQueryClient();
+  const toast = useToast();
+
+  const handleCancellation = async (data) => {
+    let formData = {
+      appointment_id: data.id,
+      status: data.status,
+    };
+    try {
+      const res = await ADD(user.token, data.url, formData);
+      if (res.response === 200) {
+        showToast(toast, "success", "Success!");
+        queryClient.invalidateQueries("cartdata");
+        return res;
+      } else {
+        showToast(toast, "error", res.message);
+        return res;
+      }
+    } catch (error) {
+      return error;
+    }
+  };
+
+  const mutation = useMutation({
+    mutationFn: async (data) => {
+      await handleCancellation(data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries(["appointment-req-history", appointID]);
+      queryClient.invalidateQueries(["appointment", appointID]);
+      onClose();
+    },
+    onError: (error) => {
+      showToast(toast, "error", JSON.stringify(error));
+    },
+  });
+
+  if (mutation.isPending) return <Loading />;
+
+  return (
+    <AlertDialog
+      motionPreset="slideInBottom"
+      leastDestructiveRef={cancelRef}
+      onClose={onClose}
+      isOpen={isOpen}
+      isCentered
+    >
+      <AlertDialogOverlay />
+
+      <AlertDialogContent m={{ base: 2, md: 0 }}>
+        <AlertDialogHeader fontSize={"md"}>
+          {currentStatus === null
+            ? "Cancel Appointment"
+            : "Delete Cancellation Request"}{" "}
+          ?
+        </AlertDialogHeader>
+        <AlertDialogCloseButton />
+        <AlertDialogBody>
+          {currentStatus === null
+            ? "Are you sure , you want to cancel this appointment"
+            : "Are you sure , you want to delete cancellation request"}{" "}
+          ?
+        </AlertDialogBody>
+        <AlertDialogFooter>
+          <Button ref={cancelRef} onClick={onClose} size={"sm"} minW={20}>
+            No
+          </Button>
+          <Button
+            colorScheme="red"
+            ml={3}
+            size={"sm"}
+            minW={20}
+            onClick={() => {
+              currentStatus === null
+                ? mutation.mutate({
+                    id: appointID,
+                    status: "Initiated",
+                    url: "appointment_cancellation",
+                  })
+                : currentStatus === "Initiated"
+                ? mutation.mutate({
+                    id: appointID,
+                    status: "Initiated",
+                    url: "delete_appointment_cancellation",
+                  })
+                : null;
+            }}
+          >
+            Yes
+          </Button>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+};
+
+// ReqHistory Component
+const ReqHistory = ({ item }) => {
+  const getStatusColor = (status) => {
+    switch (status) {
+      case "Initiated":
+        return "yellow.400";
+      case "Rejected":
+        return "red.500";
+      case "Approved":
+        return "green.500";
+      case "Processing":
+        return "orange.400";
+      default:
+        return "gray.500";
+    }
+  };
+  return (
+    <Box>
+      <Flex gap={5} align={"center"}>
+        <Box
+          bg={getStatusColor(item.status)}
+          width="8px"
+          height="8px"
+          borderRadius="50%"
+        />
+        <Box>
+          <Text fontSize={"sm"} fontWeight={600}>
+            {item.status}
+          </Text>
+          <Text fontSize={"xs"} fontWeight={500} color={"gray.600"}>
+            {moment(item.created_at).format("DD-MM-YYYY hh:mm A")}
+          </Text>
+        </Box>
+      </Flex>
+      <Divider borderColor={"#fff"} my={2} borderWidth={1} />
+    </Box>
   );
 };

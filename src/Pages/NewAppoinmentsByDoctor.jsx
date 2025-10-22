@@ -46,6 +46,7 @@ import useSettingsData from "../Hooks/SettingData";
 import ISDCODEMODAL from "../Components/ISDCODEMODAL";
 import PaymentGetwayData from "../Hooks/Paymntgetways";
 import StripePaymentController from "../Controllers/StripePayController";
+import LocationShare from "../Components/LocationShare";
 
 const steps = [
   {
@@ -68,7 +69,7 @@ const steps = [
 const feeData = [
   {
     id: 1,
-    title: "OPD",
+    title: "OPD",    // Backend: "OPD" → Frontend: "Clinic Visit"
     fee: 400,
     service_charge: 0,
     created_at: "2024-01-28 12:39:29",
@@ -76,7 +77,7 @@ const feeData = [
   },
   {
     id: 2,
-    title: "Video Consultant",
+    title: "Video Consultant",   // Backend: "Video Consultant" → Frontend: "Video Call"
     fee: 250,
     service_charge: 20,
     created_at: "2024-01-28 12:40:11",
@@ -84,8 +85,16 @@ const feeData = [
   },
   {
     id: 3,
-    title: "Emergency",
+    title: "Emergency",      // Backend: "Emergency" → Frontend: "Telehealth"
     fee: 500,
+    service_charge: 30,
+    created_at: "2024-01-28 12:40:11",
+    updated_at: "2024-08-10 13:29:39",
+  },
+  {
+    id: 4,
+    title: "Out Call",       // Backend: "Out Call" → Frontend: "Out Call" New
+    fee: 600,
     service_charge: 30,
     created_at: "2024-01-28 12:40:11",
     updated_at: "2024-08-10 13:29:39",
@@ -187,9 +196,13 @@ function NewAppoinmentsByDoctor() {
           />
         );
       case 3:
-        return (
-          <Step3 setPatientDetails={setpatientDetails} setStep={setStep} />
-        );
+      return (
+        <Step3 
+          setPatientDetails={setpatientDetails} 
+          setStep={setStep}
+          appoinmentType={appoinmentType}  // ADD THIS LINE
+        />
+      );
       case 4:
         return (
           <Step4
@@ -343,6 +356,12 @@ const Step2 = ({
         ? `get_doctor_video_time_interval/${Doctordetails.user_id}/${getDayName(
             selectedDate
           )}`
+
+        // ADD OUT CALL TIME SLOT LOGIC
+        : appoinmentType.title === "Out Call"
+        ? `get_doctor_time_interval/${Doctordetails.user_id}/${getDayName(
+            selectedDate
+          )}` 
         : `get_doctor_time_interval/${Doctordetails.user_id}/${getDayName(
             selectedDate
           )}`;
@@ -563,14 +582,308 @@ const Step2 = ({
     </Box>
   );
 };
-const Step3 = ({ setPatientDetails, setStep }) => {
+// const Step3 = ({ setPatientDetails, setStep, appoinmentType }) => {
+//   const { isOpen, onOpen, onClose } = useDisclosure();
+//   const { register, handleSubmit } = useForm();
+//   const [addNew, setaddNew] = useState(false);
+//   const [isd_code, setisd_code] = useState(defaultISD);
+//   const [isUserAddLoading, setisUserAddLoading] = useState(false);
+//   const toast = useToast();
+//   const QueryClient = useQueryClient();
+
+//   //
+//   const getData = async () => {
+//     const res = await GET(`get_family_members/user/${user?.id}`);
+//     return res.data;
+//   };
+//   const { isLoading: patientLoading, data: patientData } = useQuery({
+//     queryKey: ["family-members", user?.id],
+//     queryFn: getData,
+//   });
+
+//   if (patientLoading) {
+//     return <Loading />;
+//   }
+
+//   // API CALL
+//   const onSubmit = async (data) => {
+//     let apiData = {
+//       ...data,
+//       isd_code: isd_code,
+//       user_id: user.id,
+//     };
+
+//     // ADD OUT CALL FIELDS TO THE PATIENT DETAILS
+//     if (appoinmentType?.title === "Out Call") {
+//       apiData = {
+//         ...apiData,
+//         out_call_address: data.out_call_address,
+//         out_call_city: data.out_call_city,
+//         out_call_landmark: data.out_call_landmark,
+//         out_call_instructions: data.out_call_instructions,
+//       };
+//     }
+
+//     try {
+//       setisUserAddLoading(true);
+//       const res = await ADD(user.token, "add_family_member", apiData);
+
+//       showToast(toast, "success", "Success");
+//       QueryClient.invalidateQueries("patients");
+//       setaddNew(false);
+//       setPatientDetails({ ...data, id: res.id });
+//       setStep(4);
+//     } catch (error) {
+//       setisUserAddLoading(false);
+//       showToast(toast, "error", "something went wrong");
+//     }
+//   };
+
+//   return (
+//     <Box>
+//       {" "}
+//       {addNew ? (
+//         <Box>
+//           <Text fontSize={18} fontWeight={600} mb={3} textAlign={"center"}>
+//             Add New family member
+//           </Text>{" "}
+//           <Divider />
+//           <Box mt={5} as="form" onSubmit={handleSubmit(onSubmit)}>
+//             <motion.div
+//               initial={{ opacity: 0, y: 30 }}
+//               animate={{ opacity: 1, y: 0 }}
+//               transition={{ duration: 0.4 }}
+//             >
+//               <FormControl isRequired>
+//                 <FormLabel>First Name</FormLabel>
+//                 <Input
+//                   type="text"
+//                   size={"sm"}
+//                   fontSize={16}
+//                   {...register("f_name", { required: true })}
+//                 />
+//               </FormControl>
+//               <FormControl mt={5} isRequired>
+//                 <FormLabel>Last Name</FormLabel>
+//                 <Input
+//                   type="text"
+//                   size={"sm"}
+//                   fontSize={16}
+//                   {...register("l_name", { required: true })}
+//                 />
+//               </FormControl>
+
+//               <FormControl mt={5} isRequired>
+//                 <FormLabel>Phone </FormLabel>
+//                 <InputGroup size={"sm"}>
+//                   <InputLeftAddon
+//                     cursor={"pointer"}
+//                     onClick={(e) => {
+//                       e.stopPropagation();
+//                       onOpen();
+//                     }}
+//                   >
+//                     {isd_code}
+//                   </InputLeftAddon>
+//                   <Input
+//                     type="tel"
+//                     fontSize={16}
+//                     {...register("phone", { required: true })}
+//                   />
+//                 </InputGroup>
+//               </FormControl>
+//               <Flex w={"full"} gap={4} mt={5}>
+//                 <FormControl id="gender">
+//                   <FormLabel>Gender</FormLabel>
+//                   <Select {...register("gender", { required: true })}>
+//                     <option value={"Male"}>Male</option>
+//                     <option value={"Female"}>Female</option>
+//                   </Select>
+//                 </FormControl>
+//                 <FormControl id="dob">
+//                   <FormLabel>Date of Birth</FormLabel>
+//                   <Input
+//                     type="date"
+//                     {...register("dob", { required: true })}
+//                     onFocus={(e) => e.target.showPicker()}
+//                     onClick={(e) => e.target.showPicker()}
+//                   />
+//                 </FormControl>
+//               </Flex>
+//             {/* OUT CALL ADDRESS FIELDS - ONLY FOR OUT CALL */}
+//               {appoinmentType?.title === "Out Call" && (
+//                 <Box mt={6} p={4} bg="blue.50" borderRadius="md">
+//                   <Text fontSize={16} fontWeight={600} mb={3} color="blue.700">
+//                     🏠 Visit Location Details
+//                   </Text>
+//                   <Text fontSize={14} color="gray.600" mb={4}>
+//                     Where should the doctor visit you?
+//                   </Text>
+                  
+//                   <FormControl isRequired>
+//                     <FormLabel>Visit Address</FormLabel>
+//                     <Input
+//                       type="text"
+//                       size={"sm"}
+//                       fontSize={16}
+//                       placeholder="Enter the full address for the visit"
+//                       {...register("out_call_address", { required: true })}
+//                     />
+//                   </FormControl>
+                  
+//                   <FormControl mt={4} isRequired>
+//                     <FormLabel>City</FormLabel>
+//                     <Input
+//                       type="text"
+//                       size={"sm"}
+//                       fontSize={16}
+//                       placeholder="City"
+//                       {...register("out_call_city", { required: true })}
+//                     />
+//                   </FormControl>
+                  
+//                   <FormControl mt={4}>
+//                     <FormLabel>Landmark (Optional)</FormLabel>
+//                     <Input
+//                       type="text"
+//                       size={"sm"}
+//                       fontSize={16}
+//                       placeholder="Nearby landmark for easy location"
+//                       {...register("out_call_landmark")}
+//                     />
+//                   </FormControl>
+                  
+//                   <FormControl mt={4}>
+//                     <FormLabel>Special Instructions (Optional)</FormLabel>
+//                     <Input
+//                       type="text"
+//                       size={"sm"}
+//                       fontSize={16}
+//                       placeholder="e.g., Ring bell twice, Park in back"
+//                       {...register("out_call_instructions")}
+//                     />
+//                   </FormControl>
+//                 </Box>
+//               )}
+//             </motion.div>
+
+//             <Flex gap={5} justify={"end"} mt={8}>
+//               <Button w={"30%"} size={"sm"} onClick={() => setaddNew(false)}>
+//                 Cancle
+//               </Button>
+//               <Button
+//                 w={"40%"}
+//                 size={"sm"}
+//                 colorScheme="blue"
+//                 type="submit"
+//                 isLoading={isUserAddLoading}
+//               >
+//                 Add
+//               </Button>
+//             </Flex>
+//           </Box>
+//         </Box>
+//       ) : (
+//         <Box>
+//           <Text fontSize={17} fontWeight={600} mb={3}>
+//             Family Member
+//           </Text>{" "}
+//           <Box>
+//             <AnimatePresence>
+//               {" "}
+//               <motion.div
+//                 initial={{ opacity: 0, y: 50 }}
+//                 animate={{ opacity: 1, y: 0 }}
+//                 transition={{ duration: 0.2 }}
+//               >
+//                 {" "}
+//                 <Button
+//                   align="center"
+//                   leftIcon={<BsPersonAdd fontSize={20} />}
+//                   colorScheme="blue"
+//                   size={"sm"}
+//                   w={"100%"}
+//                   onClick={() => {
+//                     setaddNew(true);
+//                   }}
+//                 >
+//                   Add Family Member
+//                 </Button>
+//                 {patientData && (
+//                   <Box>
+//                     <Text
+//                       fontSize={14}
+//                       fontWeight={600}
+//                       mb={3}
+//                       textAlign={"center"}
+//                       my={2}
+//                     >
+//                       OR
+//                     </Text>{" "}
+//                     {patientData.map((patient) => (
+//                       <motion.div
+//                         key={patient.id}
+//                         initial={{ opacity: 0, y: 50 }}
+//                         animate={{ opacity: 1, y: 0 }}
+//                         transition={{ duration: 0.7 }}
+//                       >
+//                         <Card
+//                           cursor={"pointer"}
+//                           mb={4}
+//                           onClick={() => {
+//                             setPatientDetails(patient);
+//                             setStep(4);
+//                           }}
+//                         >
+//                           <CardBody p={4}>
+//                             <Flex align={"center"} gap={4}>
+//                               <FaUser fontSize={24} color="#2D3748" />
+//                               <Box>
+//                                 {" "}
+//                                 <Text fontSize={14} fontWeight={600} mb={0}>
+//                                   {patient.f_name} {patient.l_name}
+//                                 </Text>{" "}
+//                                 <Text fontSize={14} fontWeight={600}>
+//                                   {patient.phone}
+//                                 </Text>{" "}
+//                               </Box>
+//                             </Flex>
+//                           </CardBody>
+//                         </Card>
+//                       </motion.div>
+//                     ))}
+//                   </Box>
+//                 )}
+//               </motion.div>
+//             </AnimatePresence>
+//           </Box>
+//         </Box>
+//       )}
+//       <ISDCODEMODAL
+//         isOpen={isOpen}
+//         onClose={onClose}
+//         setisd_code={setisd_code}
+//       />
+//     </Box>
+//   );
+// };
+
+const Step3 = ({ setPatientDetails, setStep, appoinmentType }) => {
   const { isOpen, onOpen, onClose } = useDisclosure();
-  const { register, handleSubmit } = useForm();
+  const { register, handleSubmit, watch, setValue } = useForm();
   const [addNew, setaddNew] = useState(false);
   const [isd_code, setisd_code] = useState(defaultISD);
   const [isUserAddLoading, setisUserAddLoading] = useState(false);
   const toast = useToast();
   const QueryClient = useQueryClient();
+
+  // Watch for out_call_address changes to handle location sharing
+  const outCallAddress = watch("out_call_address");
+
+  // Handle location sharing from LocationShare component
+  const handleLocationShare = (locationText) => {
+    setValue("out_call_address", locationText);
+  };
 
   //
   const getData = async () => {
@@ -593,6 +906,17 @@ const Step3 = ({ setPatientDetails, setStep }) => {
       isd_code: isd_code,
       user_id: user.id,
     };
+
+    // ADD OUT CALL FIELDS TO THE PATIENT DETAILS
+    if (appoinmentType?.title === "Out Call") {
+      apiData = {
+        ...apiData,
+        out_call_address: data.out_call_address,
+        out_call_city: data.out_call_city,
+        out_call_landmark: data.out_call_landmark,
+        out_call_instructions: data.out_call_instructions,
+      };
+    }
 
     try {
       setisUserAddLoading(true);
@@ -680,11 +1004,68 @@ const Step3 = ({ setPatientDetails, setStep }) => {
                   />
                 </FormControl>
               </Flex>
+
+              {/* OUT CALL ADDRESS FIELDS - ONLY FOR OUT CALL */}
+              {appoinmentType?.title === "Out Call" && (
+                <Box mt={6} p={4} borderWidth="1px" borderRadius="lg" borderColor="blue.200" bg="blue.50">
+                  <Text fontSize={16} fontWeight={600} mb={3} color="blue.700">
+                    🏠 Home Visit Location Details
+                  </Text>
+                  <Text fontSize={14} color="gray.600" mb={4}>
+                    Where should the doctor visit you?
+                  </Text>
+                  
+                  {/* Location Share Component */}
+                  <LocationShare
+                    value={outCallAddress}
+                    onChange={handleLocationShare}
+                  />
+
+                  {/* Additional Address Fields */}
+                  <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4} mt={4}>
+                    <FormControl isRequired>
+                      <FormLabel>City</FormLabel>
+                      <Input
+                        type="text"
+                        size={"sm"}
+                        fontSize={16}
+                        placeholder="City"
+                        bg="white"
+                        {...register("out_call_city", { required: true })}
+                      />
+                    </FormControl>
+
+                    <FormControl>
+                      <FormLabel>Landmark (Optional)</FormLabel>
+                      <Input
+                        type="text"
+                        size={"sm"}
+                        fontSize={16}
+                        placeholder="Nearby landmark for easy location"
+                        bg="white"
+                        {...register("out_call_landmark")}
+                      />
+                    </FormControl>
+                  </SimpleGrid>
+
+                  <FormControl mt={4}>
+                    <FormLabel>Special Instructions (Optional)</FormLabel>
+                    <Input
+                      type="text"
+                      size={"sm"}
+                      fontSize={16}
+                      placeholder="e.g., Ring bell twice, Park in back"
+                      bg="white"
+                      {...register("out_call_instructions")}
+                    />
+                  </FormControl>
+                </Box>
+              )}
             </motion.div>
 
             <Flex gap={5} justify={"end"} mt={8}>
               <Button w={"30%"} size={"sm"} onClick={() => setaddNew(false)}>
-                Cancle
+                Cancel
               </Button>
               <Button
                 w={"40%"}
@@ -882,6 +1263,8 @@ const Step4 = ({
         return doc.video_fee;
       case "Emergency":
         return doc.emg_fee;
+      case "Out Call":      // New CASE
+      return doc.out_call_fee || 600; // Fallback to 600 if not set
       default:
         return doc.emg_fee;
     }
@@ -938,6 +1321,13 @@ const Step4 = ({
       doct_id: Doctordetails.user_id,
       dept_id: Doctordetails.department,
       type: appoinmentType.title,
+      // ADD OUT CALL FIELDS HERE TOO
+      ...(appoinmentType.title === "Out Call" && {
+        out_call_address: patientDetails.out_call_address,
+        out_call_city: patientDetails.out_call_city,
+        out_call_landmark: patientDetails.out_call_landmark,
+        out_call_instructions: patientDetails.out_call_instructions,
+      }),
       payment_status: method == 2 ? "Unpaid" : "Paid",
       fee: getfee(appoinmentType.title, Doctordetails),
       service_charge: 0,
@@ -1004,6 +1394,14 @@ const Step4 = ({
     doct_id: String(Doctordetails.user_id), // Convert to string
     dept_id: String(Doctordetails.department), // Convert to string
     type: appoinmentType.title,
+
+    // NEW: Conditionally include Out Call address fields
+    ...(appoinmentType.title === "Out Call" && {
+      out_call_address: patientDetails.out_call_address || "",
+      out_call_city: patientDetails.out_call_city || "",
+      out_call_landmark: patientDetails.out_call_landmark || "",
+      out_call_instructions: patientDetails.out_call_instructions || "",
+    }),
     payment_status: "Paid",
     fee: String(getfee(appoinmentType.title, Doctordetails).toFixed(2)), // Convert to string
     service_charge: "0.0", // Ensure this is a string with decimal
@@ -1132,6 +1530,53 @@ const Step4 = ({
             {appoinmentType.title}
           </Text>{" "}
         </Flex>
+
+        {/* ADD THIS SECTION FOR OUT CALL LOCATION DISPLAY */}
+        {appoinmentType?.title === "Out Call" && patientDetails?.out_call_address && (
+          <>
+            <Flex justify={"space-between"} mb={1}>
+              <Text
+                fontSize={15}
+                fontWeight={500}
+                textAlign={"center"}
+                color={"gray.600"}
+              >
+                Visit Location
+              </Text>
+              <Text
+                fontSize={15}
+                fontWeight={500}
+                textAlign={"center"}
+                color={"blue.600"}
+                maxW="200px"
+                textAlign="right"
+              >
+                📍 Location Shared
+              </Text>
+            </Flex>
+            {patientDetails.out_call_city && (
+              <Flex justify={"space-between"} mb={1}>
+                <Text
+                  fontSize={15}
+                  fontWeight={500}
+                  textAlign={"center"}
+                  color={"gray.600"}
+                >
+                  City
+                </Text>
+                <Text
+                  fontSize={15}
+                  fontWeight={500}
+                  textAlign={"center"}
+                  color={"gray.600"}
+                >
+                  {patientDetails.out_call_city}
+                </Text>
+              </Flex>
+            )}
+          </>
+        )}
+      
         <Flex justify={"space-between"} mb={1}>
           {" "}
           <Text
