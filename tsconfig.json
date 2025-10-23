@@ -4,6 +4,7 @@
     "paths": {
       "@/*": ["./src/*"]
     },
+    "outDir": "./dist", // Add this line
     "allowJs": true, // Allows JavaScript files
     "resolveJsonModule": true, // For importing JSON if needed
     "jsx": "react-jsx", // For React JSX files
@@ -12,5 +13,9 @@
     "skipLibCheck": true // Skip type checking of declaration files
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules"]
+  "exclude": [
+    "node_modules",
+    "dist",
+    // "src/**/*.js" // Exclude JS files from compilation
+  ]
 }
