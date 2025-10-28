@@ -26,6 +26,8 @@ import {
   RadioGroup,
   Stack,
   Select,
+  Alert,
+  AlertIcon,
 } from "@chakra-ui/react";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
@@ -874,22 +876,39 @@ const Step3 = ({ setPatientDetails, setStep, appoinmentType }) => {
   const [addNew, setaddNew] = useState(false);
   const [isd_code, setisd_code] = useState(defaultISD);
   const [isUserAddLoading, setisUserAddLoading] = useState(false);
+  const [coordinates, setCoordinates] = useState({ lat: null, lng: null }); // Store coordinates
   const toast = useToast();
   const QueryClient = useQueryClient();
-
-  // Watch for out_call_address changes to handle location sharing
-  const outCallAddress = watch("out_call_address");
-
-  // Handle location sharing from LocationShare component
-  const handleLocationShare = (locationText) => {
+  // Handle location sharing with coordinates
+  const handleLocationShare = (locationText, coords) => {
     setValue("out_call_address", locationText);
+    if (coords && coords.latitude && coords.longitude) {
+      setCoordinates({ 
+        lat: coords.latitude, 
+        lng: coords.longitude 
+      });      
+      setValue("patient_lat", coords.latitude);
+      setValue("patient_lng", coords.longitude);
+    } else {
+      // console.log('❌ No coordinates received');
+    }
   };
 
-  //
+  // Handle manual address change
+  const handleManualAddressChange = (e) => {
+    const address = e.target.value;
+    setValue("out_call_address", address);
+    // Clear coordinates for manual address
+    setCoordinates({ lat: null, lng: null });
+    setValue("patient_lat", null);
+    setValue("patient_lng", null);
+  };
+
   const getData = async () => {
     const res = await GET(`get_family_members/user/${user?.id}`);
     return res.data;
   };
+
   const { isLoading: patientLoading, data: patientData } = useQuery({
     queryKey: ["family-members", user?.id],
     queryFn: getData,
@@ -909,13 +928,27 @@ const Step3 = ({ setPatientDetails, setStep, appoinmentType }) => {
 
     // ADD OUT CALL FIELDS TO THE PATIENT DETAILS
     if (appoinmentType?.title === "Out Call") {
+      const patientLat = coordinates.lat || data.patient_lat;
+      const patientLng = coordinates.lng || data.patient_lng;
+      if (!patientLat || !patientLng) {
+        showToast(toast, "error", "Please share your GPS location for Out Call appointment");
+        return;
+      }
+
+      if (!data.out_call_address || !data.out_call_city) {
+        showToast(toast, "error", "Address and city are required for Out Call appointment");
+        return;
+      }
+
       apiData = {
         ...apiData,
         out_call_address: data.out_call_address,
         out_call_city: data.out_call_city,
         out_call_landmark: data.out_call_landmark,
         out_call_instructions: data.out_call_instructions,
-      };
+        patient_lat: parseFloat(patientLat),    // ✅ Ensure numeric
+        patient_lng: parseFloat(patientLng),    // ✅ Ensure numeric
+      };      
     }
 
     try {
@@ -925,11 +958,21 @@ const Step3 = ({ setPatientDetails, setStep, appoinmentType }) => {
       showToast(toast, "success", "Success");
       QueryClient.invalidateQueries("patients");
       setaddNew(false);
-      setPatientDetails({ ...data, id: res.id });
+
+      const patientWithCoords = { 
+        ...data, 
+        id: res.id,
+        ...(appoinmentType?.title === "Out Call" && {
+          patient_lat: coordinates.lat || data.patient_lat,
+          patient_lng: coordinates.lng || data.patient_lng
+        })
+      };
+      
+      setPatientDetails(patientWithCoords);
       setStep(4);
     } catch (error) {
       setisUserAddLoading(false);
-      showToast(toast, "error", "something went wrong");
+      showToast(toast, "error", "Something went wrong while adding family member");
     }
   };
 
@@ -957,6 +1000,7 @@ const Step3 = ({ setPatientDetails, setStep, appoinmentType }) => {
                   {...register("f_name", { required: true })}
                 />
               </FormControl>
+              
               <FormControl mt={5} isRequired>
                 <FormLabel>Last Name</FormLabel>
                 <Input
@@ -986,8 +1030,9 @@ const Step3 = ({ setPatientDetails, setStep, appoinmentType }) => {
                   />
                 </InputGroup>
               </FormControl>
+              
               <Flex w={"full"} gap={4} mt={5}>
-                <FormControl id="gender">
+                <FormControl id="gender" isRequired>
                   <FormLabel>Gender</FormLabel>
                   <Select {...register("gender", { required: true })}>
                     <option value={"Male"}>Male</option>
@@ -1017,9 +1062,23 @@ const Step3 = ({ setPatientDetails, setStep, appoinmentType }) => {
                   
                   {/* Location Share Component */}
                   <LocationShare
-                    value={outCallAddress}
+                    value={watch("out_call_address")}
                     onChange={handleLocationShare}
                   />
+
+                  {/* Show coordinates if captured */}
+                  {coordinates.lat && coordinates.lng && (
+                    <Alert status="success" size="sm" mt={3}>
+                      <AlertIcon />
+                      <Text fontSize="xs">
+                        GPS Coordinates Captured: {coordinates.lat.toFixed(6)}, {coordinates.lng.toFixed(6)}
+                      </Text>
+                    </Alert>
+                  )}
+
+                  {/* Hidden fields for coordinates */}
+                  <input type="hidden" {...register("patient_lat")} />
+                  <input type="hidden" {...register("patient_lng")} />
 
                   {/* Additional Address Fields */}
                   <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4} mt={4}>
@@ -1327,6 +1386,8 @@ const Step4 = ({
         out_call_city: patientDetails.out_call_city,
         out_call_landmark: patientDetails.out_call_landmark,
         out_call_instructions: patientDetails.out_call_instructions,
+        patient_lat: patientDetails.patient_lat,
+        patient_lng: patientDetails.patient_lng,
       }),
       payment_status: method == 2 ? "Unpaid" : "Paid",
       fee: getfee(appoinmentType.title, Doctordetails),
@@ -1401,6 +1462,8 @@ const Step4 = ({
       out_call_city: patientDetails.out_call_city || "",
       out_call_landmark: patientDetails.out_call_landmark || "",
       out_call_instructions: patientDetails.out_call_instructions || "",
+      patient_lat: patientDetails.patient_lat ? String(patientDetails.patient_lat) : "",
+      patient_lng: patientDetails.patient_lng ? String(patientDetails.patient_lng) : "",
     }),
     payment_status: "Paid",
     fee: String(getfee(appoinmentType.title, Doctordetails).toFixed(2)), // Convert to string

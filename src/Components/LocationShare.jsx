@@ -19,6 +19,8 @@ import {
   ModalBody,
   ModalCloseButton,
   useDisclosure,
+  Alert,
+  AlertIcon,
 } from "@chakra-ui/react";
 import { useState } from "react";
 import { FaLocationArrow, FaMapMarkerAlt, FaCopy, FaExternalLinkAlt } from "react-icons/fa";
@@ -28,6 +30,29 @@ const LocationShare = ({ value, onChange, isDisabled = false }) => {
   const [currentCoords, setCurrentCoords] = useState(null);
   const { isOpen, onOpen, onClose } = useDisclosure();
   const toast = useToast();
+
+  // ✅ FIX: Safe onChange function with error handling
+  const safeOnChange = (locationText, coords) => {
+    try {
+      if (onChange && typeof onChange === 'function') {
+        onChange(locationText, coords);
+      } else {
+        toast({
+          title: "Configuration Error",
+          description: "Location sharing is not properly configured",
+          status: "error",
+          duration: 3000,
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Error sharing location",
+        description: "Please try again",
+        status: "error",
+        duration: 3000,
+      });
+    }
+  };
 
   // Get REAL current location using browser GPS
   const getCurrentLocation = () => {
@@ -44,9 +69,9 @@ const LocationShare = ({ value, onChange, isDisabled = false }) => {
       return;
     }
 
-    // This uses device GPS - shows EXACT location like WhatsApp
+    // This uses device GPS - shows EXACT location
     navigator.geolocation.getCurrentPosition(
-      (position) => {
+      (position) => {        
         const { latitude, longitude } = position.coords;
         setCurrentCoords({ latitude, longitude });
         
@@ -54,9 +79,11 @@ const LocationShare = ({ value, onChange, isDisabled = false }) => {
         const mapsUrl = `https://www.google.com/maps?q=${latitude},${longitude}`;
         const mapsDirectionsUrl = `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}`;
         
-        const locationText = `📍 My Current Location\nLatitude: ${latitude}\nLongitude: ${longitude}\n\n🗺️ Open Location: ${mapsUrl}\n🚗 Get Directions: ${mapsDirectionsUrl}`;
-        
-        onChange(locationText);
+        const locationText = `📍 My Current Location\nLatitude: ${latitude}\nLongitude: ${longitude}\n\n🗺️ Open Location: ${mapsUrl}\n🚗 Get Directions: ${mapsDirectionsUrl}`;        
+        safeOnChange(locationText, { 
+          latitude: latitude, 
+          longitude: longitude 
+        });
         setIsLoading(false);
         onOpen(); // Show confirmation modal
         
@@ -68,7 +95,7 @@ const LocationShare = ({ value, onChange, isDisabled = false }) => {
         });
       },
       (error) => {
-        setIsLoading(false);
+        setIsLoading(false);        
         let errorMessage = "Failed to get location";
         
         switch (error.code) {
@@ -101,44 +128,37 @@ const LocationShare = ({ value, onChange, isDisabled = false }) => {
     );
   };
 
-  // Generate static map preview (optional enhancement)
-  const getStaticMapUrl = (lat, lng) => {
-    return `https://maps.googleapis.com/maps/api/staticmap?center=${lat},${lng}&zoom=15&size=400x200&markers=color:red%7C${lat},${lng}&key=YOUR_GOOGLE_MAPS_API_KEY`;
-  };
-
-  // Copy location to clipboard
-  const copyToClipboard = () => {
-    if (value) {
-      navigator.clipboard.writeText(value);
-      toast({
-        title: "Copied to clipboard!",
-        status: "success",
-        duration: 2000,
-      });
-    }
+  // Handle manual textarea changes
+  const handleManualChange = (e) => {
+    const text = e.target.value;
+    safeOnChange(text, null); // No coordinates for manual entry
   };
 
   // Extract coordinates from location text
   const extractCoordinates = (text) => {
-    const urlMatch = text.match(/https:\/\/www\.google\.com\/maps\?q=([-\d.]+),([-\d.]+)/);
-    if (urlMatch) {
-      return { 
-        latitude: parseFloat(urlMatch[1]), 
-        longitude: parseFloat(urlMatch[2]),
-        mapsUrl: urlMatch[0]
-      };
-    }
+    if (!text) return null;
     
-    // Fallback: extract from text
-    const latMatch = text.match(/Latitude:\s*([-\d.]+)/);
-    const lngMatch = text.match(/Longitude:\s*([-\d.]+)/);
-    if (latMatch && lngMatch) {
-      return { 
-        latitude: parseFloat(latMatch[1]), 
-        longitude: parseFloat(lngMatch[1]),
-        mapsUrl: `https://www.google.com/maps?q=${latMatch[1]},${lngMatch[1]}`
-      };
-    }
+    try {
+      const urlMatch = text.match(/https:\/\/www\.google\.com\/maps\?q=([-\d.]+),([-\d.]+)/);
+      if (urlMatch) {
+        return { 
+          latitude: parseFloat(urlMatch[1]), 
+          longitude: parseFloat(urlMatch[2]),
+          mapsUrl: urlMatch[0]
+        };
+      }
+      
+      // Fallback: extract from text
+      const latMatch = text.match(/Latitude:\s*([-\d.]+)/);
+      const lngMatch = text.match(/Longitude:\s*([-\d.]+)/);
+      if (latMatch && lngMatch) {
+        return { 
+          latitude: parseFloat(latMatch[1]), 
+          longitude: parseFloat(lngMatch[1]),
+          mapsUrl: `https://www.google.com/maps?q=${latMatch[1]},${lngMatch[1]}`
+        };
+      }
+    } catch (error) {    }
     
     return null;
   };
@@ -188,7 +208,7 @@ const LocationShare = ({ value, onChange, isDisabled = false }) => {
         </Text>
         <Textarea
           value={value || ""}
-          onChange={(e) => onChange(e.target.value)}
+          onChange={handleManualChange}
           placeholder="Enter your complete address with landmarks...
 Example:
 House #123, Street 45, Sector G-10
@@ -214,7 +234,14 @@ Or share your live location using the button above for exact GPS coordinates."
                   <IconButton
                     icon={<FaCopy />}
                     size="sm"
-                    onClick={copyToClipboard}
+                    onClick={() => {
+                      navigator.clipboard.writeText(value);
+                      toast({
+                        title: "Copied to clipboard!",
+                        status: "success",
+                        duration: 2000,
+                      });
+                    }}
                     aria-label="Copy location"
                   />
                 </Flex>
@@ -225,6 +252,16 @@ Or share your live location using the button above for exact GPS coordinates."
                   {value}
                 </Text>
               </Box>
+
+              {/* Show coordinates separately */}
+              {coordinates.latitude && coordinates.longitude && (
+                <Alert status="info" size="sm" borderRadius="md">
+                  <AlertIcon />
+                  <Text fontSize="xs">
+                    📍 Coordinates: {coordinates.latitude.toFixed(6)}, {coordinates.longitude.toFixed(6)}
+                  </Text>
+                </Alert>
+              )}
               
               <VStack spacing={2} align="stretch">
                 <Button
