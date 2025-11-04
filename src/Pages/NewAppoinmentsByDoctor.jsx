@@ -1441,7 +1441,7 @@ const Step4 = ({
       }
     } catch (error) {
       setisLoading(false);
-      showToast(toast, "error", "something went wrong!");
+      showToast(toast, "error", "Address and city are required for out-call appointments!");
     }
   };
 

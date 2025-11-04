@@ -386,7 +386,7 @@ export default function Doctor() {
               >
                 Make Appointment
               </Button>
-              <AnimatePresence>
+             <AnimatePresence>
                 {doctor && (
                   <motion.div
                     initial={{ opacity: 0, height: 0 }}
@@ -397,14 +397,28 @@ export default function Doctor() {
                     <Box mt={2}>
                       <Text fontSize={14} fontWeight={600}>
                         Select Appointment Type
-                      </Text>
-                      <Flex gap={3} mt={2}>
+                      </Text>                    
+                      <Flex
+                        flexWrap="wrap"
+                        gap={{ base: 2, md: 3, xl: 3 }}
+                        mt={2}
+                        justifyContent="space-between"
+                      >
                         {feeData.map((fee) => (
                           <Box
                             key={fee.id}
-                            padding={4}
+                            flex={{
+                              base: "0 0 calc(50% - 8px)", 
+                              md: "0 0 calc(50% - 12px)",  
+                              xl: "0 0 calc(25% - 12px)"   
+                            }}
+                            padding={{ 
+                              base: 3,   
+                              md: 4,     
+                              xl: 4     
+                            }}
                             borderRadius={8}
-                            minW={100}
+                            textAlign="center"
                             color={
                               appointmentType?.id === fee.id
                                 ? "#fff"
@@ -437,22 +451,48 @@ export default function Doctor() {
                                 `/book-appointment/${doctor.user_id}/${fee.id}`
                               );
                             }}
+                            _hover={{
+                              transform: isDisableTypeButton(fee?.id, data) === 1 
+                                ? "translateY(-2px)" 
+                                : "none",
+                              boxShadow: isDisableTypeButton(fee?.id, data) === 1 
+                                ? "md" 
+                                : "none",
+                            }}
+                            transition="all 0.2s"
+                            display="flex"
+                            flexDirection="column"
+                            alignItems="center"
+                            justifyContent="center"
+                            minH={{ base: "90px", md: "100px", xl: "110px" }}
                           >
-                            {fee.id == 1 ? (
-                              <MdHandshake fontSize={28} />
-                            ) : fee.id == 2 ? (
-                              <BsFillCameraVideoFill fontSize={28} />
-                            ) : fee.id == 3 ? (
-                              <GrEmergency fontSize={28} />
-                            ) : fee.id == 4 ? (
-                              <MdLocalHospital fontSize={28} /> // Add icon for Out Call
-                            ) : null}
-                            {/*In Doctor.jsx - Update the display names */}
+                            {/* Icon - Responsive sizing */}
+                            <Box fontSize={{
+                              base: "22px",  // Mobile
+                              md: "24px",    // Tablet & Laptop
+                              xl: "28px"     // Desktop
+                            }}>
+                              {fee.id == 1 ? (
+                                <MdHandshake />
+                              ) : fee.id == 2 ? (
+                                <BsFillCameraVideoFill />
+                              ) : fee.id == 3 ? (
+                                <GrEmergency />
+                              ) : fee.id == 4 ? (
+                                <MdLocalHospital />
+                              ) : null}
+                            </Box>
+                            
                             <Text
-                              mt={5}
-                              fontSize={{ base: "12px", md: "13px" }}
+                              mt={{ base: 2, md: 3, xl: 3 }}
+                              fontSize={{ 
+                                base: "12px",  
+                                md: "13px",   
+                                xl: "13px"    
+                              }}
                               fontWeight={500}
-                              m={0}
+                              noOfLines={1}
+                              lineHeight="shorter"
                             >
                               {fee.id === 1 ? "Telehealth" : 
                                 fee.id === 2 ? "Video Call" : 
@@ -460,12 +500,16 @@ export default function Doctor() {
                                 fee.id === 4 ? "Out Call" :      // This is new
                                 fee.title
                               }
-                            </Text>
+                            </Text>                           
                             <Text
-                              mt={5}
-                              fontSize={{ base: "12px", md: "13px" }}
-                              fontWeight={500}
-                              m={0}
+                              mt={1}
+                              fontSize={{ 
+                                base: "12px",  
+                                md: "13px",    
+                                xl: "13px"     
+                              }}
+                              fontWeight={600}
+                              lineHeight="shorter"
                             >
                               {getfee(fee.title, data)} {currency}
                             </Text>
@@ -475,7 +519,7 @@ export default function Doctor() {
                     </Box>
                   </motion.div>
                 )}
-              </AnimatePresence>              
+             </AnimatePresence>           
               <Divider my={3} />
               <HStack spacing={2}>
                 <IconButton
